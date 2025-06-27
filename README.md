@@ -1,5 +1,155 @@
 # Welcome to your Expo app 👋
+# Aplicación de Eventos en Vivo
+# Aplicación de Eventos en Vivo
 
+## Configuración de Firebase con google-services.json
+
+Esta aplicación utiliza Firebase para almacenar y recuperar información sobre eventos. Sigue estos pasos para configurar Firebase en tu proyecto:
+
+### 1. Crear un proyecto en Firebase
+
+1. Ve a la [Firebase Console](https://console.firebase.google.com/)
+2. Haz clic en "Añadir proyecto" y sigue los pasos para crear un nuevo proyecto
+
+### 2. Registrar la aplicación Android
+
+1. En la consola de Firebase, haz clic en el icono de Android para añadir una aplicación
+2. Introduce el nombre del paquete de tu aplicación (el mismo que se encuentra en android/app/build.gradle)
+3. (Opcional) Añade un apodo para la aplicación
+4. Haz clic en "Registrar aplicación"
+
+### 3. Descargar el archivo google-services.json
+
+1. Firebase generará un archivo google-services.json. Descárgalo.
+2. Coloca este archivo en la carpeta `android/app/` de tu proyecto
+
+### 4. Configurar Firestore
+
+1. En la consola de Firebase, ve a "Firestore Database"
+2. Haz clic en "Crear base de datos"
+3. Selecciona el modo que prefieras (modo de prueba o modo de producción)
+4. Selecciona la ubicación más cercana a tus usuarios
+
+### 5. Crear la colección de eventos
+
+Crea una colección llamada `events` en Firestore con la siguiente estructura para cada documento:
+
+```typescript
+{
+  title: string,
+  description: string,
+  category: string,
+  thumbnail: string,
+  isLive: boolean,
+  startTime: timestamp,
+  endTime?: timestamp,
+  viewers: number,
+  tags: string[],
+  channels: [
+    {
+      id: string,
+      name: string,
+      logo?: string,
+      category: string,
+      links: [
+        {
+          id: string,
+          name: string,
+          url: string,
+          quality: string,
+          language: string,
+          isWorking: boolean
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Uso de los servicios de eventos
+
+Importa las funciones de servicio donde necesites obtener datos de eventos:
+
+```typescript
+import { getEvents, getEventsByCategory, getLiveEvents, getEventById, getPopularEvents } from '@/services/eventService';
+
+// Ejemplo: Obtener todos los eventos
+const loadEvents = async () => {
+  try {
+    const events = await getEvents();
+    console.log(events);
+  } catch (error) {
+    console.error('Error:', error);
+  }
+};
+```
+
+## Notas Importantes
+
+- Asegúrate de que la versión del plugin de Google Services en android/build.gradle coincida con la versión compatible con tu proyecto.
+- Si encuentras problemas, verifica que las dependencias de Firebase estén correctamente instaladas con `npm install @react-native-firebase/app @react-native-firebase/firestore`.
+## Configuración de Firebase
+
+La aplicación utiliza Firebase para almacenar y recuperar información sobre eventos. Sigue estos pasos para configurar Firebase en tu proyecto:
+
+1. Crea un proyecto en [Firebase Console](https://console.firebase.google.com/)
+2. Agrega una aplicación web a tu proyecto Firebase
+3. Copia las credenciales de configuración
+4. Actualiza el archivo `firebase/config.ts` con tus credenciales
+
+## Estructura de datos en Firestore
+
+Debes crear una colección llamada `events` en Firestore con la siguiente estructura para cada documento:
+
+```typescript
+{
+  title: string,
+  description: string,
+  category: string,
+  thumbnail: string,
+  isLive: boolean,
+  startTime: timestamp,
+  endTime?: timestamp,
+  viewers: number,
+  tags: string[],
+  channels: [
+    {
+      id: string,
+      name: string,
+      logo?: string,
+      category: string,
+      links: [
+        {
+          id: string,
+          name: string,
+          url: string,
+          quality: string,
+          language: string,
+          isWorking: boolean
+        }
+      ]
+    }
+  ]
+}
+```
+
+## Uso de los servicios de eventos
+
+Importa las funciones de servicio donde necesites obtener datos de eventos:
+
+```typescript
+import { getEvents, getEventsByCategory, getLiveEvents, getEventById, getPopularEvents } from '@/services/eventService';
+
+// Ejemplo: Obtener todos los eventos
+const loadEvents = async () => {
+  try {
+    const events = await getEvents();
+    console.log(events);
+  } catch (error) {
+    console.error('Error:', error);
+  }
+};
+```
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
 ## Get started

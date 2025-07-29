@@ -24,15 +24,12 @@ export interface Event {
   enlaces: Enlace[];
   hora: string;
   titulo: string;
-  isLive?: boolean;  // Add this line
+  isLive?: boolean;
+  categoria: string;// Add this line
 }
 
 export interface Enlace{
   canal: string;
   link: string;
-  m3u8: M3U8;
-}
-
-export interface M3U8 {
-  url: string[];
+  m3u8: string[];
 }

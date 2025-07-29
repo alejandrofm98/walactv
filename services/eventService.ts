@@ -1,253 +1,76 @@
-import {Agenda, Event} from '@/types';
-import {getFirestore, query, collection, where, getDocs} from '@react-native-firebase/firestore';
+import { Agenda, Event } from '@/types';
+import { getFirestore, query, collection, getDocs } from '@react-native-firebase/firestore';
 
 /**
- * Obtiene todos los eventos de Firestore
+ * Obtiene la última agenda de Firestore y calcula en qué eventos están en directo
+ * basándose en la hora y la fecha real inferida desde el orden de la lista.
  */
 export const getLastEvent = async (): Promise<Agenda[]> => {
   try {
     const db = getFirestore();
-    const q = query(collection(db, 'tvLibreEventos'));
+    const q = query(collection(db, 'tvLibreEventos'))
+    .orderBy('fecha', 'desc')
+    .limit(1);
+
     const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) return [];
 
+    const doc = querySnapshot.docs[0];
+    const data = doc.data();
+    if (!data) throw new Error('No data found');
+
+    // Extraer el día del título (ej: "27" de "Agenda - Viernes 27 de Junio de 2025")
+    const match = data.dia?.match(/\d+/);
+    if (!match) {
+      console.warn('Formato de fecha no reconocido en:', data.dia);
+      return [data as Agenda];
+    }
+
+    const diaDelMes = parseInt(match[0], 10);
     const now = new Date();
-    const currentDay = now.getDate(); // Día del mes actual (1-31)
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
 
-    return querySnapshot.docs.map(doc => {
-      const data = doc.data();
-      if (!data) throw new Error('No data found');
+    // Fecha base: hoy a las 00:00
+    let baseDate = new Date(now.getFullYear(), now.getMonth(), diaDelMes, 0, 0, 0, 0);
 
-      // Extraer el día del mes del título (ej: "27" de "Agenda - Viernes 27 de Junio de 2025")
-      const match = data.dia?.match(/\d+/);
-      if (!match) {
-        console.warn('Formato de fecha no reconocido en:', data.dia);
-        return data as Agenda;
+    const eventos = data.eventos || [];
+
+    // Procesar eventos para asignar fecha real y calcular "en directo"
+    const processedEvents = eventos.map((event: Event, index: number, arr: Event[]) => {
+      const [h, m] = (event.hora || '00:00').split(':').map(Number);
+      let eventDate = new Date(baseDate);
+      eventDate.setHours(h, m, 0, 0);
+
+      // Si la hora es menor que la del evento anterior, asumimos que es del día siguiente
+      if (index > 0) {
+        const prevHora = arr[index - 1].hora || '00:00';
+        const [prevH, prevM] = prevHora.split(':').map(Number);
+        const prevDate = new Date(baseDate);
+        prevDate.setHours(prevH, prevM, 0, 0);
+
+        if (eventDate < prevDate) {
+          eventDate.setDate(eventDate.getDate() + 1);
+          baseDate.setDate(baseDate.getDate() + 1); // actualizamos para siguientes
+        }
       }
 
-      const diaDelMes = parseInt(match[0], 10);
-      const diferenciaDias = currentDay - diaDelMes;
-
-
-      // Si es hoy, calcular qué eventos ya pasaron
-      const eventos = data.eventos || [];
-      const lastIndex = eventos.findLastIndex(event => {
-        const [eventHours, eventMinutes] = event.hora.split(':').map(Number);
-        return eventHours < currentHour || eventHours === currentHour && eventMinutes <= currentMinute
-      });
-
-      const processedEvents = eventos.map((event, index) => ({
-        ...event,
-        isLive: lastIndex === -1 || index <= lastIndex
-      }));
+      // Determinar si está en directo (margen de 3 horas)
+      const isLive = eventDate <= now;
 
       return {
-        ...data,
-        eventos: processedEvents
-      } as Agenda;
+        ...event,
+        isLive,
+        fechaReal: eventDate,
+      };
     });
+
+    return [
+      {
+        ...data,
+        eventos: processedEvents,
+      } as Agenda,
+    ];
   } catch (error) {
     console.error('Error al obtener eventos:', error);
     throw error;
   }
 };
-
-// /**
-//  * Obtiene eventos por categoría
-//  */
-// export const getEventsByCategory = async (category: string): Promise<Event[]> => {
-//   try {
-//     const eventsCollection = collection(db, 'events');
-//     const q = query(eventsCollection, where('category', '==', category));
-//     const eventsSnapshot = await getDocs(q);
-// import { db } from '@/firebase/config';
-// import { Event } from '@/types';
-//
-// /**
-//  * Obtiene todos los eventos de Firestore
-//  */
-// export const getEvents = async (): Promise<Event[]> => {
-//   try {
-//     const eventsSnapshot = await db.collection('events').get();
-//
-//     return eventsSnapshot.docs.map(doc => {
-//       const data = doc.data();
-//       return {
-//         id: doc.id,
-//         ...data
-//       } as Event;
-//     });
-//   } catch (error) {
-//     console.error('Error al obtener eventos:', error);
-//     throw error;
-//   }
-// };
-//
-// /**
-//  * Obtiene eventos por categoría
-//  */
-// export const getEventsByCategory = async (category: string): Promise<Event[]> => {
-//   try {
-//     const eventsSnapshot = await db.collection('events')
-//       .where('category', '==', category)
-//       .get();
-//
-//     return eventsSnapshot.docs.map(doc => {
-//       const data = doc.data();
-//       return {
-//         id: doc.id,
-//         ...data
-//       } as Event;
-//     });
-//   } catch (error) {
-//     console.error(`Error al obtener eventos de categoría ${category}:`, error);
-//     throw error;
-//   }
-// };
-//
-// /**
-//  * Obtiene eventos en vivo
-//  */
-// export const getLiveEvents = async (): Promise<Event[]> => {
-//   try {
-//     const eventsSnapshot = await db.collection('events')
-//       .where('isLive', '==', true)
-//       .get();
-//
-//     return eventsSnapshot.docs.map(doc => {
-//       const data = doc.data();
-//       return {
-//         id: doc.id,
-//         ...data
-//       } as Event;
-//     });
-//   } catch (error) {
-//     console.error('Error al obtener eventos en vivo:', error);
-//     throw error;
-//   }
-// };
-//
-// /**
-//  * Obtiene un evento por su ID
-//  */
-// export const getEventById = async (eventId: string): Promise<Event | null> => {
-//   try {
-//     const eventDoc = await db.collection('events').doc(eventId).get();
-//
-//     if (eventDoc.exists) {
-//       const data = eventDoc.data();
-//       return {
-//         id: eventDoc.id,
-//         ...data
-//       } as Event;
-//     } else {
-//       return null;
-//     }
-//   } catch (error) {
-//     console.error(`Error al obtener evento con ID ${eventId}:`, error);
-//     throw error;
-//   }
-// };
-//
-// /**
-//  * Obtiene los eventos populares (por número de espectadores)
-//  */
-// export const getPopularEvents = async (limitCount: number = 5): Promise<Event[]> => {
-//   try {
-//     const eventsSnapshot = await db.collection('events')
-//       .orderBy('viewers', 'desc')
-//       .limit(limitCount)
-//       .get();
-//
-//     return eventsSnapshot.docs.map(doc => {
-//       const data = doc.data();
-//       return {
-//         id: doc.id,
-//         ...data
-//       } as Event;
-//     });
-//   } catch (error) {
-//     console.error('Error al obtener eventos populares:', error);
-//     throw error;
-//   }
-// };
-//     return eventsSnapshot.docs.map(doc => {
-//       const data = doc.data();
-//       return {
-//         id: doc.id,
-//         ...data
-//       } as Event;
-//     });
-//   } catch (error) {
-//     console.error(`Error al obtener eventos de categoría ${category}:`, error);
-//     throw error;
-//   }
-// };
-//
-// /**
-//  * Obtiene eventos en vivo
-//  */
-// export const getLiveEvents = async (): Promise<Event[]> => {
-//   try {
-//     const eventsCollection = collection(db, 'events');
-//     const q = query(eventsCollection, where('isLive', '==', true));
-//     const eventsSnapshot = await getDocs(q);
-//
-//     return eventsSnapshot.docs.map(doc => {
-//       const data = doc.data();
-//       return {
-//         id: doc.id,
-//         ...data
-//       } as Event;
-//     });
-//   } catch (error) {
-//     console.error('Error al obtener eventos en vivo:', error);
-//     throw error;
-//   }
-// };
-//
-// /**
-//  * Obtiene un evento por su ID
-//  */
-// export const getEventById = async (eventId: string): Promise<Event | null> => {
-//   try {
-//     const eventRef = doc(db, 'events', eventId);
-//     const eventSnapshot = await getDoc(eventRef);
-//
-//     if (eventSnapshot.exists()) {
-//       const data = eventSnapshot.data();
-//       return {
-//         id: eventSnapshot.id,
-//         ...data
-//       } as Event;
-//     } else {
-//       return null;
-//     }
-//   } catch (error) {
-//     console.error(`Error al obtener evento con ID ${eventId}:`, error);
-//     throw error;
-//   }
-// };
-//
-// /**
-//  * Obtiene los eventos populares (por número de espectadores)
-//  */
-// export const getPopularEvents = async (limitCount: number = 5): Promise<Event[]> => {
-//   try {
-//     const eventsCollection = collection(db, 'events');
-//     const q = query(eventsCollection, orderBy('viewers', 'desc'), limit(limitCount));
-//     const eventsSnapshot = await getDocs(q);
-//
-//     return eventsSnapshot.docs.map(doc => {
-//       const data = doc.data();
-//       return {
-//         id: doc.id,
-//         ...data
-//       } as Event;
-//     });
-//   } catch (error) {
-//     console.error('Error al obtener eventos populares:', error);
-//     throw error;
-//   }
-// };

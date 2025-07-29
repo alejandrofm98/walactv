@@ -19,7 +19,7 @@
         "backgroundColor": "#ffffff"
 
       },
-      "package": "com.walerike.wlactv",
+      "package": "com.walerike.walactv",
       "googleServicesFile": "./google-services.json"
     },
     "web": {

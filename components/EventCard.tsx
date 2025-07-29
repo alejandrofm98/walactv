@@ -17,6 +17,16 @@ interface EventCardProps {
   onChannelPress: (eventId: string, channelId: string) => void;
 }
 
+const images = {
+  ciclismo: require("../assets/images/ciclismo.png"),
+  beisbol: require("../assets/images/beisbol.png"),
+  coches: require("../assets/images/coches.jpg"),
+  futbol: require("../assets/images/futbol.jpg"),
+  lucha: require("../assets/images/lucha.jpg"),
+  motos: require("../assets/images/motos.jpeg"),
+  tenis: require("../assets/images/tenis.jpg"),
+};
+
 export function EventCard({ event, onPress, onChannelPress }: EventCardProps) {
   console.log("event",event)
 
@@ -34,7 +44,7 @@ export function EventCard({ event, onPress, onChannelPress }: EventCardProps) {
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.imageContainer}>
-        {/*<Image source={{ uri: event.thumbnail }} style={styles.image} />*/}
+        <Image source={images[event.categoria.toLowerCase()]} style={styles.image} />
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.8)']}
           style={styles.gradient}
@@ -79,28 +89,6 @@ export function EventCard({ event, onPress, onChannelPress }: EventCardProps) {
 
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={2}>{event.titulo}</Text>
-        {/*<Text style={styles.description} numberOfLines={2}>{event.description}</Text>*/}
-        <Text style={styles.description} numberOfLines={2}>Descripción</Text>
-
-        <View style={styles.channelsContainer}>
-          <Text style={styles.channelsLabel}>Canales disponibles:</Text>
-          {/*<View style={styles.channelsList}>*/}
-          {/*  {event.enlaces.slice(0, 3).map((channel, index) => (*/}
-          {/*    <TouchableOpacity*/}
-          {/*      key={channel.id}*/}
-          {/*      style={styles.channelButton}*/}
-          {/*      onPress={() => onChannelPress(event.id, channel.id)}*/}
-          {/*    >*/}
-          {/*      <Play size={12} color="#1E88E5" />*/}
-          {/*      <Text style={styles.channelName}>{channel.name}</Text>*/}
-          {/*      <Text style={styles.linksCount}>({channel.links.length})</Text>*/}
-          {/*    </TouchableOpacity>*/}
-          {/*  ))}*/}
-          {/*  {event.channels.length > 3 && (*/}
-          {/*    <Text style={styles.moreChannels}>+{event.channels.length - 3} más</Text>*/}
-          {/*  )}*/}
-          {/*</View>*/}
-        </View>
       </View>
     </TouchableOpacity>
   );

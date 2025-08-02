@@ -1,15 +1,18 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-import { Platform } from 'react-native';
+import {Tabs} from 'expo-router';
+import React, {useEffect} from 'react';
+import {Platform} from 'react-native';
 
-import { HapticTab } from '@/components/HapticTab';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+import {HapticTab} from '@/components/HapticTab';
 import TabBarBackground from '@/components/ui/TabBarBackground';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
-import {Camera, CameraIcon, Tv} from "lucide-react-native";
+import {Colors} from '@/constants/Colors';
+import {useColorScheme} from '@/hooks/useColorScheme';
+import {CalendarDays, Tv} from "lucide-react-native";
+import * as NavigationBar from "expo-navigation-bar";
+import { useHideNavBar } from '@/hooks/useHideNavBar';
 
 export default function TabLayout() {
+  useHideNavBar();
+
   const colorScheme = useColorScheme();
 
   return (
@@ -31,14 +34,14 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Eventos',
-          tabBarIcon: ({ color }) => <Tv size={28}  color={color} />,
+          tabBarIcon: ({ color }) => <CalendarDays size={28}  color={color} />,
         }}
       />
       <Tabs.Screen
-        name="Canales"
+        name="canales"
         options={{
           title: 'Canales',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          tabBarIcon: ({ color }) => <Tv size={28} color={color} />,
         }}
       />
     </Tabs>

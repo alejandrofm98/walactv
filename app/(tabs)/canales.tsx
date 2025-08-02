@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,13 @@ import {
   Image,
   TextInput,
   SafeAreaView,
-  StatusBar,
+  StatusBar, RefreshControl,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Search, Play, Star, Users } from 'lucide-react-native';
+import {useHideNavBar} from "@/hooks/useHideNavBar";
+import {Enlace} from "@/types";
+import {getCanales} from '@/services/eventService';
 
 interface Channel {
   id: string;
@@ -24,180 +27,138 @@ interface Channel {
   isLive: boolean;
 }
 
-const mockChannels: Channel[] = [
-  {
-    id: '1',
-    name: 'Canal Uno',
-    logo: 'https://images.pexels.com/photos/1181396/pexels-photo-1181396.jpeg?auto=compress&cs=tinysrgb&w=300&h=200',
-    category: 'Noticias',
-    rating: 4.5,
-    viewers: '125K',
-    description: 'Tu canal de noticias 24 horas',
-    isLive: true,
-  },
-  {
-    id: '2',
-    name: 'Deportes Max',
-    logo: 'https://images.pexels.com/photos/1884574/pexels-photo-1884574.jpeg?auto=compress&cs=tinysrgb&w=300&h=200',
-    category: 'Deportes',
-    rating: 4.8,
-    viewers: '89K',
-    description: 'El mejor contenido deportivo',
-    isLive: true,
-  },
-  {
-    id: '3',
-    name: 'Cine Plus',
-    logo: 'https://images.pexels.com/photos/7991579/pexels-photo-7991579.jpeg?auto=compress&cs=tinysrgb&w=300&h=200',
-    category: 'Entretenimiento',
-    rating: 4.3,
-    viewers: '156K',
-    description: 'Las mejores películas y series',
-    isLive: false,
-  },
-  {
-    id: '4',
-    name: 'Música TV',
-    logo: 'https://images.pexels.com/photos/1105666/pexels-photo-1105666.jpeg?auto=compress&cs=tinysrgb&w=300&h=200',
-    category: 'Música',
-    rating: 4.6,
-    viewers: '78K',
-    description: 'Videos musicales las 24 horas',
-    isLive: true,
-  },
-  {
-    id: '5',
-    name: 'Discovery',
-    logo: 'https://images.pexels.com/photos/1109541/pexels-photo-1109541.jpeg?auto=compress&cs=tinysrgb&w=300&h=200',
-    category: 'Documentales',
-    rating: 4.7,
-    viewers: '92K',
-    description: 'Documentales y naturaleza',
-    isLive: true,
-  },
-  {
-    id: '6',
-    name: 'Kids Zone',
-    logo: 'https://images.pexels.com/photos/1148998/pexels-photo-1148998.jpeg?auto=compress&cs=tinysrgb&w=300&h=200',
-    category: 'Infantil',
-    rating: 4.4,
-    viewers: '201K',
-    description: 'Contenido para toda la familia',
-    isLive: true,
-  },
-];
-
 export default function ChannelsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [filteredChannels, setFilteredChannels] = useState(mockChannels);
+  const [canales, setCanales] = useState<Enlace[]>([]);
+  const [filteredChannels, setFilteredChannels] = useState<Enlace[]>(canales);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
+  useHideNavBar();
+
+  const loadEvents = async () => {
+    try {
+      setLoading(true);
+      const canales = await getCanales();
+      if (!canales?.length) {
+        setError(true);
+        return;
+      }
+      setCanales(canales);
+      setFilteredChannels(canales);
+      setError(false);
+    } catch (error) {
+      console.error('Error loading channels:', error);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
+
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
     if (query.trim() === '') {
-      setFilteredChannels(mockChannels);
+      setFilteredChannels(canales);
     } else {
-      const filtered = mockChannels.filter(
-          (channel) =>
-              channel.name.toLowerCase().includes(query.toLowerCase()) ||
-              channel.category.toLowerCase().includes(query.toLowerCase())
+      const filtered = canales.filter(
+        (canal) =>
+            canal.canal.toLowerCase().includes(query.toLowerCase())
       );
       setFilteredChannels(filtered);
     }
   };
 
-  const handleChannelPress = (channel: Channel) => {
+  const handleChannelPress = (enlaces: Enlace) => {
     // Navegar a la pantalla de detalles del canal
+    const enlacesAux = [enlaces];
     router.push({
-      pathname: '/channel/[id]',
+      pathname: '/video',
       params: {
-        id: channel.id,
-        name: channel.name,
-        logo: channel.logo,
-        category: channel.category,
-        rating: channel.rating.toString(),
-        viewers: channel.viewers,
-        description: channel.description,
-        isLive: channel.isLive.toString(),
+        enlaces: JSON.stringify(enlacesAux),
+        eventName: enlacesAux[0].canal,
       },
     });
   };
 
-  const renderChannel = ({ item }: { item: Channel }) => (
-      <TouchableOpacity
-          style={styles.channelCard}
-          onPress={() => handleChannelPress(item)}
-          activeOpacity={0.8}
-      >
-        <View style={styles.cardContent}>
-          <Image source={{ uri: item.logo }} style={styles.channelLogo} />
-
-          <View style={styles.channelInfo}>
-            <View style={styles.channelHeader}>
-              <Text style={styles.channelName}>{item.name}</Text>
-              {item.isLive && (
-                  <View style={styles.liveIndicator}>
-                    <View style={styles.liveDot} />
-                    <Text style={styles.liveText}>EN VIVO</Text>
-                  </View>
-              )}
-            </View>
-
-            <Text style={styles.channelCategory}>{item.category}</Text>
-            <Text style={styles.channelDescription} numberOfLines={2}>
-              {item.description}
+  const renderChannel = ({ item }: { item: Enlace }) => (
+    <TouchableOpacity
+      style={styles.channelCard}
+      onPress={() => handleChannelPress(item)}
+      activeOpacity={0.8}
+    >
+      <View style={styles.cardContent}>
+        <Image
+            source={{ uri: item.logo }}
+            style={styles.channelLogo}
+            resizeMode="contain"   // <-- para que entre completa y centrada
+        />
+        <View style={styles.channelInfo}>
+          <View style={styles.channelHeader}>
+            <Text style={styles.channelName} numberOfLines={1} ellipsizeMode="tail">
+              {item.canal}
             </Text>
-
-            <View style={styles.channelStats}>
-              <View style={styles.statItem}>
-                <Star size={14} color="#fbbf24" fill="#fbbf24" />
-                <Text style={styles.statText}>{item.rating}</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Users size={14} color="#6b7280" />
-                <Text style={styles.statText}>{item.viewers}</Text>
-              </View>
-            </View>
           </View>
 
-          <TouchableOpacity style={styles.playButton}>
-            <Play size={18} color="#ffffff" fill="#ffffff" />
-          </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
   );
 
   return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#0f172a" />
 
-        <View style={styles.header}>
-          <Text style={styles.title}>Canales de TV</Text>
-          <Text style={styles.subtitle}>
-            {filteredChannels.length} canales disponibles
+      <View style={styles.header}>
+        <Text style={styles.title}>Canales Acestream</Text>
+        <Text style={styles.subtitle}>
+          {filteredChannels.length} canales disponibles
+        </Text>
+      </View>
+
+      <View style={styles.searchContainer}>
+        <View style={styles.searchInputContainer}>
+          <Search size={20} color="#94a3b8" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar canales..."
+            placeholderTextColor="#94a3b8"
+            value={searchQuery}
+            onChangeText={handleSearch}
+            selectionColor="#3b82f6"
+          />
+        </View>
+      </View>
+
+      {filteredChannels.length > 0 ? (
+          <FlatList
+              data={filteredChannels}
+              renderItem={renderChannel}
+              keyExtractor={(item) => item.canal}
+              contentContainerStyle={styles.channelsList}
+              showsVerticalScrollIndicator={false}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              refreshControl={
+                <RefreshControl
+                    refreshing={loading}            // estado que ya usas
+                    onRefresh={loadEvents}          // la función que ya tienes
+                    colors={['#1E88E5']}            // color del spinner (Android)
+                    tintColor="#1E88E5"             // color del spinner (iOS)
+                />
+              }
+          />
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Search size={48} color="#94a3b8" />
+          <Text style={styles.emptyText}>
+            No se encontraron canales que coincidan con tu búsqueda
           </Text>
         </View>
-
-        <View style={styles.searchContainer}>
-          <View style={styles.searchInputContainer}>
-            <Search size={20} color="#6b7280" style={styles.searchIcon} />
-            <TextInput
-                style={styles.searchInput}
-                placeholder="Buscar canales..."
-                value={searchQuery}
-                onChangeText={handleSearch}
-                placeholderTextColor="#9ca3af"
-            />
-          </View>
-        </View>
-
-        <FlatList
-            data={filteredChannels}
-            renderItem={renderChannel}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.channelsList}
-            showsVerticalScrollIndicator={false}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
+      )}
       </SafeAreaView>
   );
 }
@@ -205,69 +166,72 @@ export default function ChannelsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#111827',
+    backgroundColor: '#0f172a', // Matching video.tsx background
   },
   header: {
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 10,
+    backgroundColor: '#0f172a',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(59, 130, 246, 0.2)', // Matching video.tsx border color
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
-    color: '#f9fafb',
+    color: '#ffffff', // White text
     marginBottom: 4,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#9ca3af',
+    fontSize: 14,
+    color: '#94a3b8', // Lighter text color
   },
   searchContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#0f172a',
   },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1f2937',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    backgroundColor: '#1e293b', // Slightly lighter than background
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.2)', // Matching video.tsx border color
   },
   searchIcon: {
     marginRight: 10,
+    color: '#94a3b8', // Matching secondary text color
   },
   searchInput: {
     flex: 1,
     fontSize: 16,
-    color: '#f9fafb',
+    color: '#ffffff', // White text
     fontWeight: '400',
+    padding: 0,
   },
   channelsList: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    backgroundColor: '#0f172a',
   },
   channelCard: {
-    backgroundColor: '#1f2937',
-    borderRadius: 16,
-    marginVertical: 6,
+    backgroundColor: '#1e293b', // Slightly lighter than background
+    borderRadius: 12,
+    marginVertical: 8,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.1)', // Subtle border
   },
   cardContent: {
     flexDirection: 'row',
@@ -277,8 +241,10 @@ const styles = StyleSheet.create({
   channelLogo: {
     width: 80,
     height: 60,
-    borderRadius: 8,
+    borderRadius: 6,
     marginRight: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   channelInfo: {
     flex: 1,
@@ -287,79 +253,133 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   channelName: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#f9fafb',
+    color: '#ffffff',
     flex: 1,
   },
   liveIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ef4444',
+    backgroundColor: '#ef4444', // Brighter red for better visibility
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#ffffff',
-    marginRight: 4,
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   liveText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#ffffff',
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 4,
   },
   channelCategory: {
-    fontSize: 14,
-    color: '#3B82F6',
+    fontSize: 13,
+    color: '#94a3b8', // Matching secondary text color
+    marginBottom: 6,
     fontWeight: '500',
-    marginBottom: 4,
   },
   channelDescription: {
+    fontSize: 13,
+    color: '#cbd5e1', // Slightly lighter than secondary
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  channelFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  channelRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ratingText: {
+    color: '#f59e0b', // Yellow for rating
+    fontSize: 13,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  viewersContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  viewersText: {
+    color: '#94a3b8', // Matching secondary text color
+    fontSize: 13,
+    marginLeft: 4,
+  },
+  playButton: {
+    backgroundColor: '#3b82f6', // Blue from video.tsx
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  playButtonText: {
+    color: 'white',
+    fontWeight: '600',
     fontSize: 14,
-    color: '#9ca3af',
-    lineHeight: 20,
-    marginBottom: 8,
+    marginLeft: 6,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#0f172a',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginTop: 16,
+    lineHeight: 24,
   },
   channelStats: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginTop: 4,
   },
-  statItem: {
+  statContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 16,
   },
   statText: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: '#94a3b8', // Matching secondary text color
     marginLeft: 4,
     fontWeight: '500',
   },
-  playButton: {
-    backgroundColor: '#3B82F6',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12,
-    shadowColor: '#3B82F6',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
   separator: {
     height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    marginVertical: 8,
+  },
+  sectionHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#0f172a',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
   },
 });

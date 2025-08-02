@@ -7,7 +7,9 @@ import {useColorScheme} from '@/hooks/useColorScheme';
 
 import {ForceUpdateModal, useForceUpdate} from "@/utils/autoUpdate";
 import {useEffect, useState} from "react";
-import {View} from "react-native";
+import {Platform, View} from "react-native";
+import * as NavigationBar from 'expo-navigation-bar';
+import {useHideNavBar} from "@/hooks/useHideNavBar";
 
 export default function RootLayout() {
   const [checked, setChecked] = useState(false);
@@ -16,6 +18,8 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
+
+  useHideNavBar();
 
   // 1. Mark check as finished once
   useEffect(() => {

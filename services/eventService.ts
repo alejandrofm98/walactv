@@ -1,5 +1,5 @@
-import { Agenda, Event } from '@/types';
-import { getFirestore, query, collection, getDocs } from '@react-native-firebase/firestore';
+import {Agenda, Enlace, Event} from '@/types';
+import {getFirestore, query, collection, getDocs, firebase} from '@react-native-firebase/firestore';
 
 /**
  * Obtiene la última agenda de Firestore y calcula en qué eventos están en directo
@@ -72,5 +72,26 @@ export const getLastEvent = async (): Promise<Agenda[]> => {
   } catch (error) {
     console.error('Error al obtener eventos:', error);
     throw error;
+  }
+};
+
+
+export const getCanales = async (): Promise<Enlace[]> => {
+  try {
+    // QuerySnapshot: documento con ID exacto
+    const db = getFirestore();
+
+    const q = query(collection(db, 'canales')).where(firebase.firestore.FieldPath.documentId(), '==', 'canales_2.0');
+
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) return [];
+
+    const doc = querySnapshot.docs[0];
+    const data = doc.data();
+    if (!data) throw new Error('No data found');
+    return data.canales as Enlace[];
+  } catch (err) {
+    console.error('Error al obtener canales:', err);
+    return [];
   }
 };

@@ -1,23 +1,22 @@
 {
   "expo": {
-    "name": "wlactv",
-    "slug": "wlactv",
+    "name": "walactv",
+    "slug": "walactv",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "wlactv",
+    "scheme": "walactv",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.walerike.wlactv",
+      "bundleIdentifier": "com.walerike.walactv",
       "googleServicesFile": "./GoogleService-Info.plist"
-    },  
+    },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-
       },
       "package": "com.walerike.walactv",
       "googleServicesFile": "./google-services.json"
@@ -38,7 +37,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

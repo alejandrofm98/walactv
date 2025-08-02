@@ -1,76 +1,40 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {useNavigation} from '@react-navigation/native';
 import {useLocalSearchParams} from 'expo-router';
 import {
-  Animated,
   BackHandler,
-  Dimensions,
   Platform,
   Pressable,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
 } from 'react-native';
 import {VLCPlayer} from 'react-native-vlc-media-player';
 import Orientation from 'react-native-orientation-locker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import * as NavigationBar from 'expo-navigation-bar';
-import { Enlace } from '@/types';
-
-const proxyUrl = 'https://walactv.walerike.com/proxy?url=';
+import {Enlace} from '@/types';
+import {useNavigation} from "@react-navigation/native";
+import ChannelsList from "@/components/ChannelsList";
+import {useHideNavBar} from "@/hooks/useHideNavBar";
 
 export default function Video() {
   const { enlaces, eventName } = useLocalSearchParams();
-  const enlacesStr = Array.isArray(enlaces) ? enlaces[0] : enlaces; // string | undefined
-  const parsedEnlaces :Enlace[] = enlacesStr ? JSON.parse(enlacesStr) : [];
-  const playerRef = useRef(null);
-  const [paused, setPaused] = useState(false);
+  const enlacesStr = Array.isArray(enlaces) ? enlaces[0] : enlaces;
+  const parsedEnlaces: Enlace[] = enlacesStr ? JSON.parse(enlacesStr) : [];
+  const playerRef = useRef<any>(null);
+
+  const [paused, setPaused]   = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [screen, setScreen] = useState(Dimensions.get('screen'));
+  const [currentUri, setCurrentUri] = useState(parsedEnlaces[0].m3u8[0]);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [controlsTimeout, setControlsTimeout] = useState<number | null>(null);
+  let controlsTimeout = useRef<number | null>(null);
   const navigation = useNavigation();
-  const [currentUri, setCurrentUri] = useState(proxyUrl + parsedEnlaces[0].m3u8[0]);
   const [activeChannel, setActiveChannel] = useState(0);
   const [activeStream, setActiveStream] = useState(0);
 
-  const showControlsWithTimeout = () => {
-    setControlsVisible(true);
+  useHideNavBar();
 
-    // Limpiar timeout anterior si existe
-    if (controlsTimeout) {
-      clearTimeout(controlsTimeout);
-    }
-
-    // Crear nuevo timeout de 5 segundos
-    const timeout = setTimeout(() => {
-      setControlsVisible(false);
-    }, 5000); // Cambiado de 3000 a 5000 ms (5 segundos)
-
-    setControlsTimeout(timeout);
-  };
-
-  // Efecto para mostrar controles inicialmente con timeout
-  useEffect(() => {
-    showControlsWithTimeout();
-
-    // Limpiar timeout al desmontar el componente
-    return () => {
-      if (controlsTimeout) {
-        clearTimeout(controlsTimeout);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    const subscription = Dimensions.addEventListener('change', ({ screen }) => {
-      setScreen(screen);
-    });
-    return () => subscription?.remove();
-  }, []);
 
   useEffect(() => {
     navigation.setOptions({
@@ -79,152 +43,64 @@ export default function Video() {
     });
   }, [isFullscreen, navigation]);
 
-  useEffect(() => {
-    if (Platform.OS === 'android') {
-      StatusBar.setHidden(isFullscreen, 'slide');
-      if (isFullscreen) {
-        NavigationBar.setVisibilityAsync('hidden');
-        NavigationBar.setBehaviorAsync('inset-swipe');
-      } else {
-        NavigationBar.setVisibilityAsync('visible');
-        NavigationBar.setBehaviorAsync('overlay-swipe');
-      }
-    } else {
-      StatusBar.setHidden(isFullscreen);
-    }
-  }, [isFullscreen]);
-
-  useEffect(() => {
-    const backAction = () => {
-      if (isFullscreen) {
-        exitFullscreen();
-        return true;
-      }
-      return false;
-    };
-
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', backAction);
-    return () => backHandler.remove();
-  }, [isFullscreen]);
-
-  const exitFullscreen = () => {
-    Orientation.lockToPortrait();
-    setTimeout(() => {
-      if (Platform.OS === 'android') {
-        StatusBar.setHidden(false, 'slide');
-        NavigationBar.setVisibilityAsync('visible');
-        NavigationBar.setBehaviorAsync('overlay-swipe');
-      } else {
-        StatusBar.setHidden(false);
-      }
-    }, 100);
-    setIsFullscreen(false);
-    // Mostrar controles al salir de fullscreen
-    showControlsWithTimeout();
+  const handleStreamChange = (channelIndex: number, streamIndex: number, url: string) => {
+    setCurrentUri(url);
+    setActiveChannel(channelIndex);
+    setActiveStream(streamIndex);
+    setPaused(false);
   };
 
-  const enterFullscreen = () => {
-    Orientation.lockToLandscapeLeft();
-    setTimeout(() => {
-      if (Platform.OS === 'android') {
-        StatusBar.setHidden(true, 'slide');
-        NavigationBar.setVisibilityAsync('hidden');
-        NavigationBar.setBehaviorAsync('inset-swipe');
-      } else {
-        StatusBar.setHidden(true);
-      }
-    }, 100);
-    setIsFullscreen(true);
-    // Mostrar controles al entrar en fullscreen
-    showControlsWithTimeout();
-  };
-
-  const toggleFullscreen = () => {
-    if (isFullscreen) {
-      exitFullscreen();
-    } else {
-      enterFullscreen();
-    }
+  /* ---- helpers ---- */
+  const resetControlsTimer = () => {
+    if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
+    setControlsVisible(true);
+    controlsTimeout.current = setTimeout(() => setControlsVisible(false), 3000);
   };
 
   const togglePlayPause = () => {
-    setPaused(p => !p);
-    showControlsWithTimeout();
+    setPaused((p) => !p);
+    resetControlsTimer();
   };
 
-  const handlePress = () => {
-    if (controlsVisible) {
-      // Si los controles están visibles, ocultarlos inmediatamente
-      setControlsVisible(false);
-      if (controlsTimeout) {
-        clearTimeout(controlsTimeout);
-      }
-    } else {
-      // Si los controles están ocultos, mostrarlos con timeout
-      showControlsWithTimeout();
-    }
+  const toggleFullscreen = () => {
+    isFullscreen ? exitFullscreen() : enterFullscreen();
+    resetControlsTimer();
   };
 
-  const handleFullscreenPress = () => {
-    toggleFullscreen();
-    showControlsWithTimeout();
+  /* ---- fullscreen ---- */
+  const enterFullscreen = () => {
+    Orientation.lockToLandscapeLeft();
+    setIsFullscreen(true);
+  };
+  const exitFullscreen = () => {
+    Orientation.lockToPortrait();
+    setIsFullscreen(false);
   };
 
-  const handleStreamChange = (channelIndex: React.SetStateAction<number>, streamIndex: React.SetStateAction<number>, url: string) => {
-    setCurrentUri(proxyUrl + url);
-    setActiveChannel(channelIndex);
-    setActiveStream(streamIndex);
-    // Mostrar controles brevemente al cambiar stream
-    showControlsWithTimeout();
-  };
+  /* ---- efectos ---- */
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isFullscreen) { exitFullscreen(); return true; }
+      return false;
+    });
+    return backHandler.remove;
+  }, [isFullscreen]);
 
-  const StreamButton = ({ title, onPress, isActive, index }: any) => {
-    const scaleValue = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (Platform.OS === 'android') StatusBar.setHidden(isFullscreen, 'slide');
+    else StatusBar.setHidden(isFullscreen);
+  }, [isFullscreen]);
 
-    const handlePressIn = () => {
-      Animated.spring(scaleValue, {
-        toValue: 0.95,
-        useNativeDriver: true,
-      }).start();
+  useEffect(() => {
+    const handleOrientation = (o: string) => {
+      if (o.startsWith('LANDSCAPE')) setIsFullscreen(true);
+      if (o === 'PORTRAIT') setIsFullscreen(false);
     };
+    Orientation.addOrientationListener(handleOrientation);
+    return () => Orientation.removeOrientationListener(handleOrientation);
+  }, []);
 
-    const handlePressOut = () => {
-      Animated.spring(scaleValue, {
-        toValue: 1,
-        useNativeDriver: true,
-      }).start();
-    };
-
-    return (
-        <Animated.View style={[{ transform: [{ scale: scaleValue }] }]}>
-          <TouchableOpacity
-              style={[styles.streamButton, isActive && styles.activeStreamButton]}
-              onPress={onPress}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
-              activeOpacity={0.8}
-          >
-            <View style={styles.streamButtonContent}>
-              <Icon
-                  name="play-circle-outline"
-                  size={20}
-                  color={isActive ? '#ffffff' : '#64748b'}
-                  style={styles.streamIcon}
-              />
-              <Text style={[styles.streamButtonText, isActive && styles.activeStreamButtonText]}>
-                {title}
-              </Text>
-              {isActive && (
-                  <View style={styles.activeIndicator}>
-                    <Icon name="radio-button-checked" size={12} color="#10b981" />
-                  </View>
-              )}
-            </View>
-          </TouchableOpacity>
-        </Animated.View>
-    );
-  };
-
+  /* ---- render ---- */
   return (
       <View style={isFullscreen ? styles.fullscreenContainer : styles.safeArea}>
         <StatusBar
@@ -243,12 +119,13 @@ export default function Video() {
             </View>
         )}
 
-        <Pressable onPress={handlePress} style={isFullscreen ? styles.fullscreenVideo : styles.videoContainer}>
+        <Pressable style={isFullscreen ? styles.fullscreenVideo : styles.videoContainer} onPress={resetControlsTimer}>
           <VLCPlayer
               ref={playerRef}
               style={isFullscreen ? styles.fullscreenPlayer : styles.normalPlayer}
-              paused={paused}
               source={{ uri: currentUri }}
+              paused={paused}
+              resizeMode="fill"
           />
 
           {controlsVisible && (
@@ -264,7 +141,7 @@ export default function Video() {
                 </View>
 
                 <View style={styles.fullscreenControls}>
-                  <TouchableOpacity onPress={handleFullscreenPress} style={styles.fullscreenBtn}>
+                  <TouchableOpacity onPress={toggleFullscreen} style={styles.fullscreenBtn}>
                     <Icon
                         name={isFullscreen ? 'fullscreen-exit' : 'fullscreen'}
                         size={40}
@@ -275,55 +152,42 @@ export default function Video() {
               </>
           )}
         </Pressable>
-
         {!isFullscreen && eventName && (
-            <ScrollView style={styles.channelsContainer} showsVerticalScrollIndicator={false}>
-              {parsedEnlaces.map((enlace : Enlace, channelIndex : number) => (
-                  <View key={channelIndex} style={styles.channelSection}>
-                    <View style={styles.channelTitleContainer}>
-                      <Icon name="tv" size={20} color="#3b82f6" style={styles.channelIcon} />
-                      <Text style={styles.channelTitle} numberOfLines={1} ellipsizeMode="tail">
-                        {enlace.canal}
-                      </Text>
-                      <View style={styles.channelBadge}>
-                        <Text style={styles.channelBadgeText}>{enlace.m3u8?.length || 0}</Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.streamsGrid}>
-                      {enlace.m3u8 && enlace.m3u8.map((url : string, streamIndex : number) => (
-                          <StreamButton
-                              key={streamIndex}
-                              title={`Opción ${streamIndex + 1}`}
-                              onPress={() => handleStreamChange(channelIndex, streamIndex, url)}
-                              isActive={activeChannel === channelIndex && activeStream === streamIndex}
-                              index={streamIndex}
-                          />
-                      ))}
-                    </View>
-                  </View>
-              ))}
-            </ScrollView>
+            <ChannelsList
+                enlaces={parsedEnlaces}
+                activeChannel={activeChannel}
+                activeStream={activeStream}
+                onStreamChange={handleStreamChange}
+            />
         )}
       </View>
   );
 }
 
+/* ---- estilos ---- */
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#0f172a',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
   },
   fullscreenContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'black',
-    zIndex: 999,
   },
+
+  playBtn: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginLeft: -24,
+    marginTop: -24,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 30,
+    padding: 8,
+  },
+
+
   titleContainer: {
     flexDirection: 'row',
     alignItems: 'center',

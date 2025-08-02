@@ -8,7 +8,6 @@ export interface StreamLink {
 }
 
 export interface Channel {
-  id: string;
   name: string;
   logo?: string;
   links: StreamLink[];
@@ -30,6 +29,7 @@ export interface Event {
 
 export interface Enlace{
   canal: string;
-  link: string;
+  link?: string;
   m3u8: string[];
+  logo?: string;
 }

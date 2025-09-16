@@ -96,6 +96,19 @@ export default function HomeScreen() {
     );
   };
 
+  // Función para obtener la fecha del evento
+  const getEventDate = () => {
+    if (agenda.length > 0) {
+      // Si la agenda tiene una propiedad de fecha, usarla
+      if (agenda[0].dia) {
+        return agenda[0].dia.replace("Agenda - ","");
+
+      }
+
+    }
+    return 'Eventos';
+  };
+
   const liveEventsCount = events?.filter(isEventLive).length || 0;
   const filteredEvents = getSortedAndFilteredEvents();
 
@@ -104,7 +117,7 @@ export default function HomeScreen() {
         <SafeAreaView style={styles.container}>
           <LinearGradient colors={['#1A1A2E', '#16213E', '#0F3460']} style={styles.header}>
             <View style={styles.headerContent}>
-              <Text style={styles.title}>Eventos</Text>
+              <Text style={styles.title}>Cargando eventos...</Text>
             </View>
           </LinearGradient>
           <View style={styles.loadingContainer}>
@@ -142,6 +155,9 @@ export default function HomeScreen() {
         >
           <View style={styles.headerContent}>
             <Text style={styles.title}>
+              {getEventDate()}
+            </Text>
+            <Text style={styles.subtitle}>
               {filteredEvents.length} evento{filteredEvents.length !== 1 ? 's' : ''}
               {filterBy !== 'all' && ` en ${filterBy.charAt(0).toUpperCase() + filterBy.slice(1)}`}
               {liveOnly && ' • En directo'}
@@ -223,32 +239,34 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
+  container: {
+    flex: 1,
     backgroundColor: '#0f172a' // Matching video.tsx background
   },
-  header: { 
-    paddingTop: 20, 
-    paddingBottom: 16, 
+  header: {
+    paddingTop: 20,
+    paddingBottom: 16,
     paddingHorizontal: 20,
     backgroundColor: '#0f172a',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(59, 130, 246, 0.2)' // Matching video.tsx border color
   },
-  headerContent: { 
-    alignItems: 'center' 
+  headerContent: {
+    alignItems: 'center'
   },
-  title: { 
-    color: '#ffffff', 
-    fontSize: 24, 
-    fontWeight: '700', 
-    textAlign: 'center', 
-    marginBottom: 4 
+  title: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 4,
+    textTransform: 'capitalize'
   },
-  subtitle: { 
-    color: '#94a3b8', 
-    fontSize: 14, 
-    textAlign: 'center' 
+  subtitle: {
+    color: '#94a3b8',
+    fontSize: 14,
+    textAlign: 'center',
+    fontWeight: '500'
   },
 
   // Contenedor principal de filtros

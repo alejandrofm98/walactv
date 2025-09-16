@@ -1,15 +1,8 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Heart, Users, Play, Clock } from 'lucide-react-native';
-import { Event } from '@/types';
-import { useFavorites } from '@/hooks/useFavorites';
+import React, { useState, useEffect } from 'react';
+import {Image, StyleSheet, Text, TouchableOpacity, View,} from 'react-native';
+import {LinearGradient} from 'expo-linear-gradient';
+import {Clock} from 'lucide-react-native';
+import {Event} from '@/types';
 
 interface EventCardProps {
   event: Event;
@@ -18,33 +11,99 @@ interface EventCardProps {
 }
 
 const images = {
-  ciclismo: require("../assets/images/ciclismo.png"),
-  beisbol: require("../assets/images/beisbol.png"),
-  coches: require("../assets/images/coches.jpg"),
-  futbol: require("../assets/images/futbol.jpg"),
-  lucha: require("../assets/images/lucha.jpg"),
-  motos: require("../assets/images/motos.jpeg"),
-  tenis: require("../assets/images/tenis.jpg"),
+  ciclismo: [
+    require("../assets/images/ciclismo.webp"),
+    require("../assets/images/ciclismo2.webp"),
+    require("../assets/images/ciclismo3.webp"),
+  ],
+  beisbol: [
+    require("../assets/images/beisbol.webp"),
+    require("../assets/images/beisbol2.webp"),
+    require("../assets/images/beisbol3.webp"),
+  ],
+  coches: [
+    require("../assets/images/coches.webp"),
+    require("../assets/images/coches2.webp"),
+    require("../assets/images/coches3.webp"),
+  ],
+  futbol: [
+    require("../assets/images/futbol.webp"),
+    require("../assets/images/futbol2.webp"),
+    require("../assets/images/futbol3.webp"),
+  ],
+  lucha: [
+    require("../assets/images/lucha.webp"),
+    require("../assets/images/lucha2.webp"),
+    require("../assets/images/lucha3.webp"),
+  ],
+  motos: [
+    require("../assets/images/motos.webp"),
+    require("../assets/images/motos2.webp"),
+    require("../assets/images/motos3.webp"),
+  ],
+  tenis: [
+    require("../assets/images/tenis.webp"),
+    require("../assets/images/tenis2.webp"),
+    require("../assets/images/tenis3.webp"),
+  ],
 };
 
+// Global state to track last used images per category
+let lastUsedImages: { [key: string]: number } = {};
+
 export function EventCard({ event, onPress, onChannelPress }: EventCardProps) {
-  console.log("event",event)
+  console.log("event", event);
+  const [selectedImage, setSelectedImage] = useState<any>(null);
 
+  const getRandomImage = (category: string) => {
+    const categoryKey = category.toLowerCase();
+    const categoryImages = images[categoryKey as keyof typeof images];
 
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'deportes': return '#FF5722';
-      case 'entretenimiento': return '#9C27B0';
-      case 'noticias': return '#2196F3';
-      case 'musica': return '#FF9800';
-      default: return '#757575';
+    if (!categoryImages || categoryImages.length === 0) {
+      // Fallback to futbol images if category not found
+      return images.futbol[0];
     }
+
+    if (categoryImages.length === 1) {
+      return categoryImages[0];
+    }
+
+    // Get available indices (excluding the last used one)
+    const lastUsedIndex = lastUsedImages[categoryKey];
+    const availableIndices = categoryImages
+      .map((_, index) => index)
+      .filter(index => index !== lastUsedIndex);
+
+    // If all images have been used, reset and use any image except the last one
+    const indicesToChooseFrom = availableIndices.length > 0 ? availableIndices :
+      categoryImages.map((_, index) => index).filter(index => index !== lastUsedIndex);
+
+    // If still no options (shouldn't happen with more than 1 image), use any
+    const finalIndices = indicesToChooseFrom.length > 0 ? indicesToChooseFrom :
+      categoryImages.map((_, index) => index);
+
+    // Select random index
+    const randomIndex = finalIndices[
+      Math.floor(Math.random() * finalIndices.length)
+    ];
+
+    // Update last used image for this category
+    lastUsedImages[categoryKey] = randomIndex;
+
+    return categoryImages[randomIndex];
   };
+
+  useEffect(() => {
+    if (event.categoria) {
+      const image = getRandomImage(event.categoria);
+      setSelectedImage(image);
+    }
+  }, [event.categoria]);
 
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.imageContainer}>
-        <Image source={images[event.categoria.toLowerCase()]} style={styles.image} />
+        <Image source={selectedImage || images.futbol[0]} style={styles.image} />
         <LinearGradient
           colors={['transparent', 'rgba(0,0,0,0.8)']}
           style={styles.gradient}

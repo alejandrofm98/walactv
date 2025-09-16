@@ -2,7 +2,7 @@
   "expo": {
     "name": "walactv",
     "slug": "walactv",
-    "version": "1.0.0",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "walactv",
@@ -33,9 +33,9 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#000220",
+          "imageWidth": 200
         }
       ],
       "expo-web-browser"

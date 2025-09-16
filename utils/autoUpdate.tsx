@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   StyleSheet,
   Text,
@@ -22,7 +22,6 @@ export function useForceUpdate() {
   const [remoteVersion, setRemoteVersion] = useState<string>('');
 
   useEffect(() => {
-    if (__DEV__) return; // skip during dev
     check();
   }, []);
 
@@ -45,7 +44,7 @@ export function useForceUpdate() {
     }
   };
 
-  return { needsUpdate, apkUrl, remoteVersion };
+  return {needsUpdate, apkUrl, remoteVersion};
 }
 
 /* -----------------------------------------------------------
@@ -180,13 +179,13 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
   },
-  title: { fontSize: 20, fontWeight: 'bold', marginBottom: 12 },
-  body: { fontSize: 16, textAlign: 'center', marginBottom: 24 },
+  title: {fontSize: 20, fontWeight: 'bold', marginBottom: 12},
+  body: {fontSize: 16, textAlign: 'center', marginBottom: 24},
   button: {
     backgroundColor: '#0066cc',
     paddingVertical: 12,
     paddingHorizontal: 32,
     borderRadius: 6,
   },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  buttonText: {color: '#fff', fontSize: 16, fontWeight: '600'},
 });

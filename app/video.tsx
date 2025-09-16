@@ -1,6 +1,8 @@
 import React, {useEffect, useRef, useState} from 'react';
+import {activateKeepAwakeAsync, deactivateKeepAwake} from 'expo-keep-awake';
 import {useLocalSearchParams} from 'expo-router';
 import {
+  Alert,
   BackHandler,
   Platform,
   Pressable,
@@ -13,32 +15,83 @@ import {
 import {VLCPlayer} from 'react-native-vlc-media-player';
 import Orientation from 'react-native-orientation-locker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import CastContext, {
+  CastButton,
+  MediaHlsSegmentFormat,
+  MediaHlsVideoSegmentFormat,
+  MediaStreamType,
+  PlayServicesState,
+  useCastSession,
+  useRemoteMediaClient,
+} from 'react-native-google-cast';
 import {Enlace} from '@/types';
-import {useNavigation} from "@react-navigation/native";
-import ChannelsList from "@/components/ChannelsList";
-import {useHideNavBar} from "@/hooks/useHideNavBar";
+import {useNavigation} from '@react-navigation/native';
+import ChannelsList from '@/components/ChannelsList';
+import {useHideNavBar} from '@/hooks/useHideNavBar';
+
 
 export default function Video() {
-  const { enlaces, eventName } = useLocalSearchParams();
+  const {enlaces, eventName} = useLocalSearchParams();
   const enlacesStr = Array.isArray(enlaces) ? enlaces[0] : enlaces;
   const parsedEnlaces: Enlace[] = enlacesStr ? JSON.parse(enlacesStr) : [];
   const playerRef = useRef<any>(null);
 
-  const [paused, setPaused]   = useState(false);
+  const [paused, setPaused] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [currentUri, setCurrentUri] = useState(parsedEnlaces[0].m3u8[0]);
+  const [currentUri, setCurrentUri] = useState(parsedEnlaces[0]?.m3u8[0] || '');
   const [controlsVisible, setControlsVisible] = useState(true);
-  let controlsTimeout = useRef<number | null>(null);
+  const controlsTimeout = useRef<NodeJS.Timeout | null>(null);
+
   const navigation = useNavigation();
   const [activeChannel, setActiveChannel] = useState(0);
   const [activeStream, setActiveStream] = useState(0);
 
+  // Google Cast
+  const castSession = useCastSession();
+  const client = useRemoteMediaClient();
+  const isCasting = !!castSession;
+
+  const [clientReady, setClientReady] = useState(false);
+
   useHideNavBar();
 
+  // Google Play Services check en Android
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      CastContext.getPlayServicesState().then((state) => {
+        if (state && state !== PlayServicesState.SUCCESS) {
+          CastContext.showPlayServicesErrorDialog(state);
+        }
+      });
+    }
+  }, []);
 
+  // Detectar cuando el cliente está listo
+  useEffect(() => {
+    if (client && typeof client.loadMedia === 'function') {
+      console.log('Cliente listo para cargar media');
+      setClientReady(true);
+    } else {
+      console.log('Cliente NO listo');
+      setClientReady(false);
+    }
+  }, [client, castSession]);
+
+  // Auto-cast cuando hay sesión activa
+  useEffect(() => {
+    if (clientReady && isCasting && currentUri) {
+      const timer = setTimeout(() => {
+        console.log('Cargando media automáticamente en Chromecast:', currentUri);
+        loadMediaToCast(currentUri);
+      }, 1000); // delay importante para evitar "No media selected"
+      return () => clearTimeout(timer);
+    }
+  }, [clientReady, isCasting, currentUri]);
+
+  // Configuración de navegación
   useEffect(() => {
     navigation.setOptions({
-      tabBarStyle: isFullscreen ? { display: 'none' } : undefined,
+      tabBarStyle: isFullscreen ? {display: 'none'} : undefined,
       headerShown: false,
     });
   }, [isFullscreen, navigation]);
@@ -48,9 +101,66 @@ export default function Video() {
     setActiveChannel(channelIndex);
     setActiveStream(streamIndex);
     setPaused(false);
+
+    if (clientReady && isCasting) {
+      setTimeout(() => loadMediaToCast(url), 800);
+    }
   };
 
-  /* ---- helpers ---- */
+  // Función para cargar media en Chromecast
+  const loadMediaToCast = async (uri?: string) => {
+    if (!clientReady || !client || !castSession) {
+      console.warn('Cliente de Chromecast no está listo todavía');
+      return;
+    }
+
+    try {
+      const videoUri = uri || currentUri;
+      if (!videoUri) {
+        console.warn('No hay URI de video para castear');
+        return;
+      }
+
+      const title = `${eventName} - ${parsedEnlaces[activeChannel]?.canal || 'Canal'}`;
+      console.log('Enviando a Chromecast:', videoUri);
+
+
+    await client.loadMedia({
+      mediaInfo: {
+        contentUrl: videoUri,
+        contentType: "video/mp2t",
+        hlsSegmentFormat: MediaHlsSegmentFormat.TS,
+        hlsVideoSegmentFormat: MediaHlsVideoSegmentFormat.MPEG2_TS,
+        metadata: { title: "AceStream Live", type: "generic" },
+        streamType: MediaStreamType.LIVE
+      },
+      autoplay: true,
+    });
+
+      console.log('✅ Media cargada en Chromecast');
+    } catch (error) {
+      console.error('❌ Error cargando media en Chromecast:', error);
+      Alert.alert('Error', 'No se pudo cargar el video en Chromecast');
+    }
+  };
+
+  // Control de reproducción Cast
+  const toggleCastPlayback = async () => {
+    if (!clientReady || !client) return;
+
+    try {
+      const mediaStatus = await client.getMediaStatus();
+      if (mediaStatus?.playerState === 'playing') {
+        await client.pause();
+      } else {
+        await client.play();
+      }
+    } catch (error) {
+      console.error('Error controlando playback en Chromecast:', error);
+    }
+  };
+
+  // Helpers UI
   const resetControlsTimer = () => {
     if (controlsTimeout.current) clearTimeout(controlsTimeout.current);
     setControlsVisible(true);
@@ -58,16 +168,17 @@ export default function Video() {
   };
 
   const togglePlayPause = () => {
-    setPaused((p) => !p);
+    if (isCasting && clientReady) toggleCastPlayback();
+    else setPaused((p) => !p);
     resetControlsTimer();
   };
 
   const toggleFullscreen = () => {
+    if (isCasting) return;
     isFullscreen ? exitFullscreen() : enterFullscreen();
     resetControlsTimer();
   };
 
-  /* ---- fullscreen ---- */
   const enterFullscreen = () => {
     Orientation.lockToLandscapeLeft();
     setIsFullscreen(true);
@@ -77,10 +188,12 @@ export default function Video() {
     setIsFullscreen(false);
   };
 
-  /* ---- efectos ---- */
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isFullscreen) { exitFullscreen(); return true; }
+      if (isFullscreen) {
+        exitFullscreen();
+        return true;
+      }
       return false;
     });
     return backHandler.remove;
@@ -100,58 +213,86 @@ export default function Video() {
     return () => Orientation.removeOrientationListener(handleOrientation);
   }, []);
 
-  /* ---- render ---- */
   return (
       <View style={isFullscreen ? styles.fullscreenContainer : styles.safeArea}>
-        <StatusBar
-            hidden={isFullscreen}
-            backgroundColor="transparent"
-            translucent={true}
-            barStyle="light-content"
-        />
+        <StatusBar hidden={isFullscreen} backgroundColor="transparent" translucent
+                   barStyle="light-content"/>
 
         {!isFullscreen && eventName && (
             <View style={styles.titleContainer}>
-              <Icon name="live-tv" size={24} color="#f59e0b" style={styles.titleIcon} />
-              <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
-                {eventName}
-              </Text>
+              <Icon name="live-tv" size={24} color="#f59e0b" style={styles.titleIcon}/>
+              <Text style={styles.title}>{eventName}</Text>
+
+              <View style={styles.castButtonContainer}>
+                {isCasting && (
+                    <View style={styles.castStatusContainer}>
+                      <Icon name="cast-connected" size={20} color="#10b981"/>
+                      <Text
+                          style={styles.castStatusText}>{clientReady ? 'Conectado' : 'Conectando...'}</Text>
+                    </View>
+                )}
+                <CastButton style={styles.castButton}/>
+              </View>
             </View>
         )}
 
-        <Pressable style={isFullscreen ? styles.fullscreenVideo : styles.videoContainer} onPress={resetControlsTimer}>
-          <VLCPlayer
-              ref={playerRef}
-              style={isFullscreen ? styles.fullscreenPlayer : styles.normalPlayer}
-              source={{ uri: currentUri }}
-              paused={paused}
-              resizeMode="fill"
-          />
+        <Pressable style={isFullscreen ? styles.fullscreenVideo : styles.videoContainer}
+                   onPress={resetControlsTimer}>
+          {!isCasting ? (
+              <VLCPlayer
+                  ref={playerRef}
+                  style={isFullscreen ? styles.fullscreenPlayer : styles.normalPlayer}
+                  source={{uri: currentUri}}
+                  paused={paused}
+                  resizeMode="fill"
+                  onPlaying={() => activateKeepAwakeAsync()}
+                  onPaused={() => deactivateKeepAwake()}
+                  onStopped={() => deactivateKeepAwake()}
+                  onEnd={() => deactivateKeepAwake()}
+              />
+          ) : (
+              <View style={styles.castingView}>
+                <Icon name="cast-connected" size={80} color="#10b981"/>
+                <Text style={styles.castingText}>Transmitiendo a Chromecast</Text>
+                <Text style={styles.castingSubtext}>{eventName}</Text>
+                <Text
+                    style={styles.castingChannel}>{parsedEnlaces[activeChannel]?.canal || 'Canal'}</Text>
+                {!clientReady && <Text style={styles.castingStatus}>Inicializando cliente...</Text>}
+              </View>
+          )}
 
           {controlsVisible && (
               <>
                 <View style={styles.centerControls}>
                   <TouchableOpacity onPress={togglePlayPause} style={styles.centerControlBtn}>
-                    <Icon
-                        name={paused ? 'play-arrow' : 'pause'}
-                        size={80}
-                        color="#ffffff"
-                    />
+                    <Icon name={paused ? 'play-arrow' : 'pause'} size={80} color="#ffffff"/>
                   </TouchableOpacity>
                 </View>
-
                 <View style={styles.fullscreenControls}>
-                  <TouchableOpacity onPress={toggleFullscreen} style={styles.fullscreenBtn}>
-                    <Icon
-                        name={isFullscreen ? 'fullscreen-exit' : 'fullscreen'}
-                        size={40}
-                        color="#ffffff"
-                    />
-                  </TouchableOpacity>
+                  {isFullscreen && (
+                      <TouchableOpacity
+                          onPress={() => clientReady && loadMediaToCast()}
+                          style={[styles.fullscreenBtn, isCasting && styles.castActiveBtn, !clientReady && styles.disabledBtn]}
+                          disabled={!clientReady}
+                      >
+                        <Icon
+                            name={isCasting ? 'cast-connected' : 'cast'}
+                            size={40}
+                            color={isCasting ? '#10b981' : clientReady ? '#ffffff' : '#666666'}
+                        />
+                      </TouchableOpacity>
+                  )}
+                  {!isCasting && (
+                      <TouchableOpacity onPress={toggleFullscreen} style={styles.fullscreenBtn}>
+                        <Icon name={isFullscreen ? 'fullscreen-exit' : 'fullscreen'} size={40}
+                              color="#ffffff"/>
+                      </TouchableOpacity>
+                  )}
                 </View>
               </>
           )}
         </Pressable>
+
         {!isFullscreen && eventName && (
             <ChannelsList
                 enlaces={parsedEnlaces}
@@ -164,30 +305,14 @@ export default function Video() {
   );
 }
 
-/* ---- estilos ---- */
+// estilos iguales a los que ya tienes
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#0f172a',
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
   },
-  fullscreenContainer: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'black',
-  },
-
-  playBtn: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    marginLeft: -24,
-    marginTop: -24,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    borderRadius: 30,
-    padding: 8,
-  },
-
-
+  fullscreenContainer: {...StyleSheet.absoluteFillObject, backgroundColor: 'black'},
   titleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -197,48 +322,72 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(59, 130, 246, 0.2)',
   },
-  titleIcon: {
-    marginRight: 12,
+  titleIcon: {marginRight: 12},
+  title: {flex: 1, color: '#ffffff', fontSize: 18, fontWeight: '700', lineHeight: 24},
+  castButtonContainer: {flexDirection: 'row', alignItems: 'center'},
+  castStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderRadius: 12,
   },
-  title: {
-    flex: 1,
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '700',
-    lineHeight: 24,
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
+  castStatusText: {color: '#10b981', fontSize: 12, fontWeight: '600', marginLeft: 4},
+  castButton: {width: 40, height: 40, tintColor: '#ffffff'},
   videoContainer: {
     height: 240,
     width: '100%',
     backgroundColor: 'black',
     borderRadius: 0,
-    overflow: 'hidden',
+    overflow: 'hidden'
   },
-  fullscreenVideo: {
+  fullscreenVideo: {flex: 1, width: '100%', height: '100%', backgroundColor: 'black'},
+  normalPlayer: {width: '100%', height: '100%'},
+  fullscreenPlayer: {flex: 1, width: '100%', height: '100%'},
+  castingView: {
     flex: 1,
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'black',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 20
   },
-  normalPlayer: {
-    width: '100%',
-    height: '100%',
+  castingText: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '700',
+    marginTop: 20,
+    textAlign: 'center'
   },
-  fullscreenPlayer: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
+  castingSubtext: {
+    color: '#94a3b8',
+    fontSize: 16,
+    marginTop: 8,
+    textAlign: 'center',
+    fontWeight: '500'
+  },
+  castingChannel: {
+    color: '#10b981',
+    fontSize: 18,
+    marginTop: 12,
+    textAlign: 'center',
+    fontWeight: '600'
+  },
+  castingStatus: {
+    color: '#f59e0b',
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+    fontStyle: 'italic'
   },
   centerControls: {
     position: 'absolute',
     top: '50%',
     left: '50%',
-    transform: [{ translateX: -60 }, { translateY: -60 }],
+    transform: [{translateX: -60}, {translateY: -60}],
     justifyContent: 'center',
-    alignItems: 'center',
+    alignItems: 'center'
   },
   centerControlBtn: {
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
@@ -249,12 +398,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    borderColor: 'rgba(255, 255, 255, 0.2)'
   },
   fullscreenControls: {
     position: 'absolute',
@@ -262,6 +406,7 @@ const styles = StyleSheet.create({
     right: 20,
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12
   },
   fullscreenBtn: {
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
@@ -271,100 +416,11 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    borderColor: 'rgba(255, 255, 255, 0.2)'
   },
-  channelsContainer: {
-    flex: 1,
-    backgroundColor: '#0f172a',
-    paddingTop: 8,
-  },
-  channelSection: {
-    marginBottom: 24,
-    paddingHorizontal: 16,
-  },
-  channelTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingVertical: 8,
-  },
-  channelIcon: {
-    marginRight: 8,
-  },
-  channelTitle: {
-    flex: 1,
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  channelBadge: {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.3)',
-  },
-  channelBadgeText: {
-    color: '#3b82f6',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  streamsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  streamButton: {
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(71, 85, 105, 0.3)',
-    marginBottom: 8,
-    minWidth: '48%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  activeStreamButton: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+  castActiveBtn: {
     borderColor: 'rgba(16, 185, 129, 0.5)',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)'
   },
-  streamButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  streamIcon: {
-    marginRight: 8,
-  },
-  streamButtonText: {
-    flex: 1,
-    color: '#94a3b8',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  activeStreamButtonText: {
-    color: '#ffffff',
-    fontWeight: '600',
-  },
-  activeIndicator: {
-    marginLeft: 8,
-  },
+  disabledBtn: {opacity: 0.5, backgroundColor: 'rgba(0, 0, 0, 0.3)'},
 });
